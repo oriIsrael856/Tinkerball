@@ -1,50 +1,75 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { soundManager } from '../utils/soundUtils';
 
-const Scenario = ({ scenario, onResult }) => {
-  const [timeLeft, setTimeLeft] = useState(scenario.timerSeconds);
-  const [selectedOptionId, setSelectedOptionId] = useState(null);
-  const [isTimeUp, setIsTimeUp] = useState(false);
-  const [startTime, setStartTime] = useState(Date.now());
+const READING_SECONDS  = 60;
+const DECISION_SECONDS = 40;
 
-  // Reset state when scenario changes
+const Scenario = ({ scenario, onResult }) => {
+  const [phase, setPhase]                   = useState('reading'); // 'reading' | 'decision'
+  const [readingLeft, setReadingLeft]       = useState(READING_SECONDS);
+  const [decisionLeft, setDecisionLeft]     = useState(DECISION_SECONDS);
+  const [selectedOptionId, setSelectedOptionId] = useState(null);
+  const [isTimeUp, setIsTimeUp]             = useState(false);
+  const [startTime, setStartTime]           = useState(null); // starts when decision phase begins
+
+  // Reset on new scenario
   useEffect(() => {
-    setTimeLeft(scenario.timerSeconds);
+    setPhase('reading');
+    setReadingLeft(READING_SECONDS);
+    setDecisionLeft(DECISION_SECONDS);
     setSelectedOptionId(null);
     setIsTimeUp(false);
-    setStartTime(Date.now());
+    setStartTime(null);
   }, [scenario.id]);
 
-  // Timer logic
+  // Reading countdown
   useEffect(() => {
-    if (selectedOptionId || isTimeUp) return;
+    if (phase !== 'reading') return;
 
-    const timerTimerId = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 0) {
-          clearInterval(timerTimerId);
+    const id = setInterval(() => {
+      setReadingLeft(prev => {
+        if (prev <= 0.1) {
+          clearInterval(id);
+          setPhase('decision');
+          setStartTime(Date.now());
+          return 0;
+        }
+        return prev - 0.1;
+      });
+    }, 100);
+
+    return () => clearInterval(id);
+  }, [phase, scenario.id]);
+
+  // Decision countdown
+  useEffect(() => {
+    if (phase !== 'decision' || selectedOptionId || isTimeUp) return;
+
+    const id = setInterval(() => {
+      setDecisionLeft(prev => {
+        if (prev <= 0.1) {
+          clearInterval(id);
           setIsTimeUp(true);
           return 0;
         }
-        if (prev < 2 && Math.floor(prev * 10) % 2 === 0) {
+        if (prev < 4 && Math.floor(prev * 10) % 2 === 0) {
           soundManager.playTick();
         }
         return prev - 0.1;
       });
     }, 100);
 
-    return () => clearInterval(timerTimerId);
-  }, [selectedOptionId, isTimeUp, scenario.id]);
+    return () => clearInterval(id);
+  }, [phase, selectedOptionId, isTimeUp, scenario.id]);
 
-  // Handle time up separately to avoid setState during render
+  // Time up → report no answer
   useEffect(() => {
-    if (isTimeUp) {
-      onResult(null, scenario.timerSeconds);
-    }
-  }, [isTimeUp, onResult, scenario.timerSeconds]);
+    if (isTimeUp) onResult(null, DECISION_SECONDS);
+  }, [isTimeUp, onResult]);
 
   const handleOptionClick = (option) => {
-    if (selectedOptionId || isTimeUp) return;
+    if (selectedOptionId || isTimeUp || phase === 'reading') return;
     const elapsed = (Date.now() - startTime) / 1000;
     setSelectedOptionId(option.id);
     onResult(option, elapsed);
@@ -57,32 +82,61 @@ const Scenario = ({ scenario, onResult }) => {
     return '';
   };
 
-  const progressPercentage = (timeLeft / scenario.timerSeconds) * 100;
-  const isDanger = timeLeft < 2;
-
   return (
     <div className="glass-card">
-      <div className="timer-bar-container">
-        <div 
-          className={`timer-bar ${isDanger ? 'timer-danger' : ''}`}
-          style={{ width: `${progressPercentage}%` }}
-        ></div>
-      </div>
-      
-      <p className="scenario-text">{scenario.question}</p>
-      
-      <div className="options-container mt-4">
-        {scenario.options.map((option) => (
-          <button
-            key={option.id}
-            onClick={() => handleOptionClick(option)}
-            className={getButtonClass(option)}
-            disabled={selectedOptionId !== null || isTimeUp}
+      {phase === 'reading' ? (
+        /* ── Reading phase ── */
+        <div className="reading-phase">
+          <div className="reading-timer-row">
+            <span className="reading-label">⏱ זמן קריאה</span>
+            <span className="reading-countdown">{Math.ceil(readingLeft)}s</span>
+          </div>
+          <div className="timer-bar-container">
+            <div
+              className="timer-bar timer-reading"
+              style={{ width: `${(readingLeft / READING_SECONDS) * 100}%` }}
+            />
+          </div>
+          <p className="scenario-text">{scenario.question}</p>
+          <p className="reading-hint">נתח את המגרש — האפשרויות יופיעו בעוד {Math.ceil(readingLeft)} שניות</p>
+        </div>
+      ) : (
+        /* ── Decision phase ── */
+        <AnimatePresence>
+          <motion.div
+            key="decision"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
           >
-            {option.text}
-          </button>
-        ))}
-      </div>
+            <div className="reading-timer-row">
+              <span className="reading-label">⚡ זמן החלטה</span>
+              <span className={`reading-countdown ${decisionLeft < 10 ? 'timer-danger-text' : ''}`}>
+                {Math.ceil(decisionLeft)}s
+              </span>
+            </div>
+            <div className="timer-bar-container">
+              <div
+                className={`timer-bar ${decisionLeft < 10 ? 'timer-danger' : ''}`}
+                style={{ width: `${(decisionLeft / DECISION_SECONDS) * 100}%` }}
+              />
+            </div>
+            <p className="scenario-text">{scenario.question}</p>
+            <div className="options-container mt-4">
+              {scenario.options.map(option => (
+                <button
+                  key={option.id}
+                  onClick={() => handleOptionClick(option)}
+                  className={getButtonClass(option)}
+                  disabled={selectedOptionId !== null || isTimeUp}
+                >
+                  {option.text}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      )}
     </div>
   );
 };

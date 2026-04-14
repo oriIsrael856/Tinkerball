@@ -402,6 +402,49 @@ button.incorrect {
   background: linear-gradient(90deg, #ef4444, #f59e0b);
 }
 
+.timer-reading {
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+}
+
+.reading-phase {
+  display: flex;
+  flex-direction: column;
+}
+
+.reading-timer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.reading-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.reading-countdown {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: white;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-danger-text {
+  color: #f87171;
+}
+
+.reading-hint {
+  text-align: center;
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.45);
+  margin-top: 0.75rem;
+  font-style: italic;
+}
+
 .glass-card {
   background: rgba(30, 41, 59, 0.6);
   backdrop-filter: blur(12px);
