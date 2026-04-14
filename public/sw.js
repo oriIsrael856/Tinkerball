@@ -7,7 +7,7 @@
 // the activate handler clears the old cache automatically.
 // ─────────────────────────────────────────────────────────────
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME    = `thinkerball-${CACHE_VERSION}`;
 
 // Pre-cached app shell — everything else is cached at runtime
@@ -15,6 +15,7 @@ const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/icon-192.png',
   '/icon-512.png',
 ];
 

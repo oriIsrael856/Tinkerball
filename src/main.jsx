@@ -12,8 +12,13 @@ createRoot(document.getElementById('root')).render(
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => {
-      console.log('SW registration failed: ', err);
-    });
+    navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        // Check for updates immediately and every 60s
+        reg.update();
+        setInterval(() => reg.update(), 60_000);
+      })
+      .catch(err => console.log('SW registration failed:', err));
   });
 }
