@@ -1,267 +1,301 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import HomeScreen from './components/HomeScreen';
+import PositionSelect from './components/PositionSelect';
+import LevelSelect from './components/LevelSelect';
+import PlayerProfile from './components/PlayerProfile';
+import LevelSummary from './components/LevelSummary';
 import Pitch from './components/Pitch';
 import Scenario from './components/Scenario';
-import WorldSelect from './components/WorldSelect';
-import { worlds } from './data/scenarios';
+import { scenariosByPosition } from './data/scenarios';
+import { getPosition } from './data/positions';
 import { soundManager } from './utils/soundUtils';
+import { 
+  loadProfile, saveProfile, ensurePositionData, 
+  recordAnswer, recordLevelComplete, getTacticalTitle 
+} from './utils/playerStore';
 
-// LocalStorage keys
-const STORAGE_KEY = 'thinkerball_progress';
-
-function loadProgress() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const data = JSON.parse(saved);
-      return {
-        unlockedWorldIndex: data.unlockedWorldIndex || 0,
-        bestScores: data.bestScores || {}
-      };
-    }
-  } catch (e) {
-    // ignore
-  }
-  return { unlockedWorldIndex: 0, bestScores: {} };
-}
-
-function saveProgress(unlockedWorldIndex, bestScores) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ unlockedWorldIndex, bestScores }));
-  } catch (e) {
-    // ignore
-  }
-}
+/*
+  Screens:
+  - home           → mode selection
+  - position       → choose playing position
+  - levels         → choose difficulty level
+  - preroll        → watching scenario setup
+  - decision       → answering
+  - feedback       → result + explanation
+  - summary        → level completed
+  - profile        → stats dashboard
+*/
 
 function App() {
-  const savedProgress = loadProgress();
-  const [unlockedWorldIndex, setUnlockedWorldIndex] = useState(savedProgress.unlockedWorldIndex);
-  const [bestScores, setBestScores] = useState(savedProgress.bestScores);
-  const [currentWorldIndex, setCurrentWorldIndex] = useState(null);
+  const [profile, setProfile] = useState(() => loadProfile());
+  const [screen, setScreen] = useState('home');
+  
+  // Game state
+  const [currentPosition, setCurrentPosition] = useState(null);
+  const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
   const [currentScenarioIndex, setCurrentScenarioIndex] = useState(0);
-  
-  // 'menu' | 'preroll' | 'decision' | 'feedback' | 'summary'
-  const [phase, setPhase] = useState('menu'); 
-  
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [responseTime, setResponseTime] = useState(null);
+  const [scenarioResults, setScenarioResults] = useState([]);
 
-  const currentWorld = currentWorldIndex !== null ? worlds[currentWorldIndex] : null;
-  const scenario = currentWorld ? currentWorld.scenarios[currentScenarioIndex] : null;
-
-  // Save progress whenever unlock or scores change
+  // Save profile on every change
   useEffect(() => {
-    saveProgress(unlockedWorldIndex, bestScores);
-  }, [unlockedWorldIndex, bestScores]);
+    saveProfile(profile);
+  }, [profile]);
 
-  const handleSelectWorld = (world, index) => {
-    setCurrentWorldIndex(index);
+  // Current scenario data
+  const currentLevels = currentPosition ? scenariosByPosition[currentPosition] : null;
+  const currentLevel = currentLevels ? currentLevels[currentLevelIndex] : null;
+  const scenario = currentLevel ? currentLevel.scenarios[currentScenarioIndex] : null;
+  const pos = currentPosition ? getPosition(currentPosition) : null;
+
+  // --- Navigation ---
+  const goHome = () => { setScreen('home'); setCurrentPosition(null); };
+  const goPositions = () => setScreen('position');
+  const goLevels = () => setScreen('levels');
+  const goProfile = () => setScreen('profile');
+
+  const handleSelectMode = (mode) => {
+    if (mode === 'player') {
+      setScreen('position');
+    }
+    // coach mode is coming soon
+  };
+
+  const handleSelectPosition = (posId) => {
+    setCurrentPosition(posId);
+    setProfile(prev => ensurePositionData(prev, posId));
+    setScreen('levels');
+  };
+
+  const handleSelectLevel = (levelIndex) => {
+    setCurrentLevelIndex(levelIndex);
     setCurrentScenarioIndex(0);
     setScore(0);
     setSelectedOption(null);
-    setPhase('preroll');
-    soundManager.init(); // Initialize on click
+    setResponseTime(null);
+    setScenarioResults([]);
+    soundManager.init();
     soundManager.startAmbience();
     soundManager.playWhistle();
-    
+    setScreen('preroll');
+
     setTimeout(() => {
-      setPhase('decision');
+      setScreen('decision');
       soundManager.playWhistle();
     }, 1500);
   };
 
-  const startScenario = () => {
-    setPhase('preroll');
+  const startNextScenario = () => {
     setSelectedOption(null);
+    setResponseTime(null);
     soundManager.playWhistle();
-    
+    setScreen('preroll');
+
     setTimeout(() => {
-      setPhase('decision');
+      setScreen('decision');
       soundManager.playWhistle();
     }, 1500);
   };
 
-  const handleResult = useCallback((option) => {
+  const handleResult = useCallback((option, time) => {
     setSelectedOption(option);
-    setPhase('feedback');
-    if (option) {
-      if (option.isCorrect) {
-        setScore(prev => prev + 1);
-        soundManager.playSuccess();
-      } else {
-        soundManager.playFail();
-      }
+    setResponseTime(time);
+    setScreen('feedback');
+
+    const isCorrect = option?.isCorrect || false;
+    if (isCorrect) {
+      setScore(prev => prev + 1);
+      soundManager.playSuccess();
     } else {
-      // Time up
       soundManager.playFail();
     }
-  }, []);
+
+    setScenarioResults(prev => [
+      ...prev,
+      { title: scenario?.title ?? '', isCorrect, time: time ?? null },
+    ]);
+
+    // Record in profile
+    setProfile(prev => recordAnswer(prev, {
+      positionId: currentPosition,
+      isCorrect,
+      responseTime: time || 99
+    }));
+  }, [currentPosition, scenario]);
 
   const nextScenario = () => {
-    if (currentScenarioIndex < currentWorld.scenarios.length - 1) {
+    if (currentScenarioIndex < currentLevel.scenarios.length - 1) {
       setCurrentScenarioIndex(prev => prev + 1);
-      startScenario();
+      startNextScenario();
     } else {
-      // Calculate final score (including this scenario's result)
-      const finalScore = score;
-      const threshold = Math.ceil(currentWorld.scenarios.length / 2);
-      
-      // Save best score for this world
-      const worldKey = `world_${currentWorldIndex}`;
-      setBestScores(prev => {
-        const current = prev[worldKey] || 0;
-        if (finalScore > current) {
-          return { ...prev, [worldKey]: finalScore };
-        }
-        return prev;
-      });
-
-      // Unlock next world if threshold met
-      if (finalScore >= threshold && currentWorldIndex === unlockedWorldIndex) {
-        setUnlockedWorldIndex(prev => prev + 1);
-      }
-      
-      setPhase('summary');
+      // Level complete
+      setProfile(prev => recordLevelComplete(prev, {
+        positionId: currentPosition,
+        levelIndex: currentLevelIndex,
+        score,
+        total: currentLevel.scenarios.length
+      }));
+      setScreen('summary');
     }
   };
 
-  const backToMenu = () => {
-    setPhase('menu');
-    setCurrentWorldIndex(null);
-  };
+  // --- Render based on screen ---
+  const showArrow = screen === 'feedback' && scenario ? scenario.correctArrow : null;
+  const phase = screen; // pass screen as phase to Pitch
 
-  // Render Menu
-  if (phase === 'menu') {
-    return (
-      <div className="app-container" style={{ justifyContent: 'center' }} dir="rtl">
-        <h1 className="title">Thinkerball ⚽🧠</h1>
-        <p className="subtitle">בדוק את קבלת ההחלטות וההבנה הטקטית שלך</p>
-        <WorldSelect 
-          worlds={worlds} 
-          unlockedWorldIndex={unlockedWorldIndex} 
-          bestScores={bestScores}
-          onSelectWorld={handleSelectWorld} 
-        />
-      </div>
-    );
-  }
-
-  // Render Summary
-  if (phase === 'summary') {
-    const isSuccess = score >= Math.ceil(currentWorld.scenarios.length / 2);
-    const bestKey = `world_${currentWorldIndex}`;
-    const best = bestScores[bestKey] || 0;
-    
-    // Tactical Profile Logic
-    let profile = "לומד את המשחק";
-    const ratio = score / currentWorld.scenarios.length;
-    if (ratio === 1) profile = "רב-אמן טקטי 🧠";
-    else if (ratio >= 0.8) profile = "פליימייקר עילית 🪄";
-    else if (ratio >= 0.6) profile = "מאמן בהתהוות 📋";
-    else if (isSuccess) profile = "שחקן חכם ⚽";
-
-    return (
-      <div className="app-container" style={{ justifyContent: 'center' }} dir="rtl">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="glass-card" 
-          style={{ textAlign: 'center', padding: '3rem 2rem' }}
-        >
-          <h1 className="title" style={{ fontSize: '2rem', marginBottom: '1.5rem' }}>סיכום עולם 📊</h1>
-          
-          <div style={{ position: 'relative', display: 'inline-block', marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '4.5rem', margin: 0, fontWeight: 900, color: isSuccess ? 'var(--accent-color)' : 'var(--danger)' }}>
-              {score}/{currentWorld.scenarios.length}
-            </h2>
-            <div className="tactical-badge" style={{ position: 'absolute', bottom: '-10px', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>
-              {profile}
-            </div>
-          </div>
-
-          <div style={{ margin: '2rem 0' }}>
-            {best > 0 && (
-              <p style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
-                שיא אישי בעולם זה: <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>{best} נקודות</span> ⭐
-              </p>
-            )}
-          </div>
-
-          <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)', fontSize: '1.2rem', lineHeight: '1.6' }}>
-            {isSuccess ? 
-              (score === currentWorld.scenarios.length ? 
-                "ניתוח מושלם של כל הסיטואציות! אתה רואה את המגרש כמו מקצוען אמיתי. העולם הבא פתוח עבורך." : 
-                "עבודה טובה מאוד! רמת ההבנה הטקטית שלך גבוהה. המשך כך כדי להגיע לשלמות.") : 
-              "נראה שיש עוד מקום לשיפור בקבלת ההחלטות. אל תתייאש, חזור על התרחישים ולמד מהחצים!"}
-          </p>
-
-          <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
-            {isSuccess && currentWorldIndex < worlds.length - 1 && (
-              <button className="primary" style={{ padding: '1.2rem' }} onClick={() => handleSelectWorld(worlds[currentWorldIndex + 1], currentWorldIndex + 1)}>
-                המשך לעולם הבא ➔
-              </button>
-            )}
-            <button className="glass-card" style={{ padding: '1rem' }} onClick={() => handleSelectWorld(currentWorld, currentWorldIndex)}>
-              נסה שוב את העולם הזה 🔄
-            </button>
-            <button className="secondary" style={{ marginTop: '0.5rem' }} onClick={backToMenu}>חזרה לתפריט הראשי</button>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Determine if we should show the arrow (only during feedback phase)
-  const showArrow = phase === 'feedback' && scenario ? scenario.correctArrow : null;
-
-  // Render Scenario
   return (
     <div className="app-container" dir="rtl">
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-          <span style={{ color: 'var(--text-secondary)' }}>
-            {currentWorld.title} - שלב {currentScenarioIndex + 1}/{currentWorld.scenarios.length}
-          </span>
-          <span style={{ fontWeight: 'bold', color: 'var(--accent-color)' }}>ניקוד: {score}</span>
-        </div>
-        <h2 className="title" style={{ fontSize: '1.5rem', textAlign: 'right' }}>{scenario.title}</h2>
-      </div>
+      <AnimatePresence mode="wait">
+        {/* HOME */}
+        {screen === 'home' && (
+          <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <HomeScreen onSelectMode={handleSelectMode} />
+            {profile.stats.totalAnswered > 0 && (
+              <motion.button 
+                className="profile-fab"
+                onClick={goProfile}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                📊 הפרופיל שלי
+              </motion.button>
+            )}
+          </motion.div>
+        )}
 
-      <Pitch 
-        initialPositions={phase === 'preroll' ? scenario.preRollPositions : scenario.initialPositions}
-        arrow={showArrow}
-        phase={phase}
-      />
+        {/* POSITION SELECT */}
+        {screen === 'position' && (
+          <motion.div key="position" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
+            <button className="back-btn top-back" onClick={goHome}>← חזרה</button>
+            <PositionSelect 
+              onSelectPosition={handleSelectPosition}
+              playerLevels={profile.levels}
+            />
+          </motion.div>
+        )}
 
-      {phase === 'preroll' && (
-        <div className="glass-card" style={{ textAlign: 'center', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <h3 style={{ color: 'var(--accent-color)', animation: 'ball-pulse 1s infinite alternate' }}>צופה במהלך... 👀</h3>
-        </div>
-      )}
+        {/* LEVEL SELECT */}
+        {screen === 'levels' && (
+          <motion.div key="levels" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
+            <LevelSelect
+              positionId={currentPosition}
+              positionData={profile.levels[currentPosition]}
+              onSelectLevel={handleSelectLevel}
+              onBack={goPositions}
+            />
+          </motion.div>
+        )}
 
-      {phase === 'decision' && (
-        <Scenario scenario={scenario} onResult={handleResult} />
-      )}
+        {/* PROFILE */}
+        {screen === 'profile' && (
+          <motion.div key="profile" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <PlayerProfile profile={profile} onBack={goHome} />
+          </motion.div>
+        )}
 
-      {phase === 'feedback' && (
-        <div className="glass-card feedback-container">
-          {selectedOption ? (
-            <>
-              <h3 className={`feedback-title ${selectedOption.isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
-                {selectedOption.isCorrect ? "החלטה מצוינת! ✅" : "החלטה שגויה ❌"}
-              </h3>
-              <p className="feedback-desc">{selectedOption.feedback}</p>
-            </>
-          ) : (
-            <>
-              <h3 className="feedback-title feedback-incorrect">נגמר הזמן! ⏳</h3>
-              <p className="feedback-desc">לא עשית בחירה בזמן. הביטו במגרש — החץ מראה את הפעולה הנכונה!</p>
-            </>
-          )}
-          <button className="primary mt-4" onClick={nextScenario}>
-            {currentScenarioIndex < currentWorld.scenarios.length - 1 ? "לתרחיש הבא" : "לסיכום העולם"}
-          </button>
-        </div>
-      )}
+        {/* GAME SCREENS (preroll, decision, feedback) */}
+        {(screen === 'preroll' || screen === 'decision' || screen === 'feedback') && scenario && (
+          <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            {/* Header */}
+            <div className="game-header">
+              <div className="game-header-left">
+                <span className="game-pos-badge">{pos?.emoji} {pos?.name}</span>
+                <span className="game-level-badge">רמה {currentLevelIndex + 1}</span>
+              </div>
+              <div className="game-header-right">
+                <span className="game-progress">
+                  {currentScenarioIndex + 1}/{currentLevel.scenarios.length}
+                </span>
+                <span className="game-score">ניקוד: {score}</span>
+              </div>
+            </div>
+
+            <h2 className="scenario-title">{scenario.title}</h2>
+
+            {/* Pitch */}
+            <Pitch 
+              initialPositions={screen === 'preroll' ? scenario.preRollPositions : scenario.initialPositions}
+              arrow={showArrow}
+              phase={phase}
+            />
+
+            {/* Preroll */}
+            {screen === 'preroll' && (
+              <div className="glass-card" style={{ textAlign: 'center', minHeight: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <h3 style={{ color: 'var(--accent-color)', animation: 'ball-pulse 1s infinite alternate' }}>צופה במהלך... 👀</h3>
+              </div>
+            )}
+
+            {/* Decision */}
+            {screen === 'decision' && (
+              <Scenario scenario={scenario} onResult={handleResult} />
+            )}
+
+            {/* Feedback */}
+            {screen === 'feedback' && (
+              <motion.div 
+                className="glass-card feedback-container"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                {selectedOption ? (
+                  <>
+                    <h3 className={`feedback-title ${selectedOption.isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
+                      {selectedOption.isCorrect ? "החלטה מצוינת! ✅" : "החלטה שגויה ❌"}
+                    </h3>
+                    <p className="feedback-desc">{selectedOption.feedback}</p>
+                    {selectedOption.principleExplained && (
+                      <div className="feedback-principle">
+                        <span className="principle-label">💡 עקרון טקטי:</span>
+                        <p>{selectedOption.principleExplained}</p>
+                      </div>
+                    )}
+                    {responseTime && (
+                      <div className="feedback-time">
+                        ⏱️ זמן תגובה: <strong>{responseTime.toFixed(1)}s</strong>
+                        {responseTime < 3 && <span className="time-fast"> ⚡ מהיר!</span>}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <h3 className="feedback-title feedback-incorrect">נגמר הזמן! ⏳</h3>
+                    <p className="feedback-desc">לא עשית בחירה בזמן. הביטו במגרש — החץ מראה את הפעולה הנכונה!</p>
+                  </>
+                )}
+                <button className="primary mt-4" onClick={nextScenario}>
+                  {currentScenarioIndex < currentLevel.scenarios.length - 1 ? "לתרחיש הבא →" : "לסיכום הרמה 📊"}
+                </button>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {/* SUMMARY */}
+        {screen === 'summary' && currentLevel && (
+          <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <LevelSummary
+              level={currentLevel}
+              levelIndex={currentLevelIndex}
+              score={score}
+              scenarioResults={scenarioResults}
+              posName={pos?.name}
+              posEmoji={pos?.emoji}
+              canGoNextLevel={
+                currentLevels?.length > currentLevelIndex + 1 &&
+                (profile.levels[currentPosition]?.unlockedLevel ?? 0) > currentLevelIndex
+              }
+              onRetry={() => handleSelectLevel(currentLevelIndex)}
+              onNextLevel={() => handleSelectLevel(currentLevelIndex + 1)}
+              onBack={goLevels}
+              onHome={goHome}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

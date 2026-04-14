@@ -5,12 +5,14 @@ const Scenario = ({ scenario, onResult }) => {
   const [timeLeft, setTimeLeft] = useState(scenario.timerSeconds);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [isTimeUp, setIsTimeUp] = useState(false);
+  const [startTime, setStartTime] = useState(Date.now());
 
   // Reset state when scenario changes
   useEffect(() => {
     setTimeLeft(scenario.timerSeconds);
     setSelectedOptionId(null);
     setIsTimeUp(false);
+    setStartTime(Date.now());
   }, [scenario.id]);
 
   // Timer logic
@@ -37,14 +39,15 @@ const Scenario = ({ scenario, onResult }) => {
   // Handle time up separately to avoid setState during render
   useEffect(() => {
     if (isTimeUp) {
-      onResult(null);
+      onResult(null, scenario.timerSeconds);
     }
-  }, [isTimeUp, onResult]);
+  }, [isTimeUp, onResult, scenario.timerSeconds]);
 
   const handleOptionClick = (option) => {
     if (selectedOptionId || isTimeUp) return;
+    const elapsed = (Date.now() - startTime) / 1000;
     setSelectedOptionId(option.id);
-    onResult(option);
+    onResult(option, elapsed);
   };
 
   const getButtonClass = (option) => {
