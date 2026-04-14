@@ -8,10 +8,8 @@ const SPRITES = {
   red:  { front: '/assets/red_front.png',  back: '/assets/red_back.png',  side: '/assets/red_side.png'  },
 };
 
-// ── Relevance helpers ─────────────────────────────────────────
-// A player is "relevant" (gets a full sprite) when close to the ball
-// OR close to the "you" player. Everyone else becomes a small dot.
-const RELEVANCE_THRESHOLD = 30; // coordinate units out of 100
+// ── Relevance: full sprite vs background dot ──────────────────
+const RELEVANCE_THRESHOLD = 30;
 
 function coordDist(a, b) {
   const dx = parseFloat(a.left) - parseFloat(b.left);
@@ -57,28 +55,7 @@ const BallSVG = () => (
   </svg>
 );
 
-const Radar = ({ ball, teamA, teamB }) => (
-  <div className="radar-container">
-    <div className="radar-field">
-      <div className="radar-dot ball" style={{ top: ball.top, left: ball.left }} />
-      {teamA.map(p => (
-        <div key={p.id} className={`radar-dot blue ${p.isYou ? 'you' : ''}`} style={{ top: p.top, left: p.left }} />
-      ))}
-      {teamB.map(p => (
-        <div key={p.id} className="radar-dot red" style={{ top: p.top, left: p.left }} />
-      ))}
-    </div>
-  </div>
-);
-
-const VisionCone = ({ facing }) => (
-  <div
-    className="vision-cone"
-    style={{ transform: `translate(-50%, -100%) rotateX(-25deg) rotateZ(${facing}deg)` }}
-  />
-);
-
-/** Small colored circle for players far from the action */
+/** Small dot for players far from the action */
 const PlayerDot = ({ team, player, transition }) => (
   <motion.div
     className={`player-dot player-dot--${team}`}
@@ -100,12 +77,7 @@ const PlayerSprite = ({ player, team, transition }) => {
       initial={false}
       transition={transition}
     >
-      {player.isYou && (
-        <>
-          <div className="player-halo" />
-          <VisionCone facing={player.facing ?? 0} />
-        </>
-      )}
+      {player.isYou && <div className="player-halo" />}
       <img src={src} alt={player.role} className="player-img" style={{ transform }} />
       <div className="player-shadow" />
       <div className="player-role-label">
@@ -141,7 +113,7 @@ const Pitch = ({ initialPositions, arrow, phase }) => {
   const playerTransition = { type: 'spring', damping: 20, stiffness: 80, mass: 1 };
   const ballTransition   = { type: 'spring', damping: 15, stiffness: 120 };
 
-  // ── Feedback animation: move ball / player to correct position ──
+  // Feedback: animate ball / player to the correct position
   let finalBallPos  = ball;
   let finalTeamAPos = teamA;
   let finalTeamBPos = teamB;
@@ -160,7 +132,7 @@ const Pitch = ({ initialPositions, arrow, phase }) => {
     }
   }
 
-  // Relevance is calculated from the INITIAL ball position (not the animated one)
+  // Relevance uses the initial ball position (not the animated feedback position)
   const youPlayer = teamA.find(p => p.isYou) ?? null;
 
   const isHoldArrow = arrow && arrow.from.top === arrow.to.top && arrow.from.left === arrow.to.left;
@@ -171,22 +143,11 @@ const Pitch = ({ initialPositions, arrow, phase }) => {
       animate={{ scale: isFocusMode ? 1.05 : 1, rotateX: isFocusMode ? 30 : 25 }}
       transition={{ duration: 0.8 }}
     >
-      {/* Field markings */}
+      {/* Essential field markings only */}
       <div className="pitch-half-line" />
       <div className="pitch-center-circle" />
-      <div className="pitch-center-dot" />
       <div className="pitch-penalty-area-top" />
-      <div className="pitch-6yard-top" />
       <div className="pitch-penalty-area-bottom" />
-      <div className="pitch-6yard-bottom" />
-      <div className="pitch-penalty-arc-top" />
-      <div className="pitch-penalty-arc-bottom" />
-      <div className="pitch-corner-tl" />
-      <div className="pitch-corner-tr" />
-      <div className="pitch-corner-bl" />
-      <div className="pitch-corner-br" />
-      <div className="pitch-penalty-spot-top" />
-      <div className="pitch-penalty-spot-bottom" />
       <div className="pitch-goal-top" />
       <div className="pitch-goal-bottom" />
 
@@ -213,11 +174,7 @@ const Pitch = ({ initialPositions, arrow, phase }) => {
       >
         <BallSVG />
         <div className="ball-shadow" />
-        <div className="ball-glow" />
       </motion.div>
-
-      {/* Radar */}
-      <Radar ball={ball} teamA={teamA} teamB={teamB} />
 
       {/* Tactical arrow */}
       <AnimatePresence>

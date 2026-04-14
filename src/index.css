@@ -9,7 +9,7 @@
   --player-blue: #3b82f6;
   --player-red: #ef4444;
   --pitch-green: #22c55e;
-  --pitch-lines: rgba(255, 255, 255, 0.6);
+  --pitch-lines: rgba(255, 255, 255, 0.3);
 }
 
 * {
@@ -176,17 +176,6 @@ button.incorrect {
   border-top: none;
   transform: translateX(-50%);
 }
-.pitch-6yard-top {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 25%;
-  height: 6%;
-  border: 2px solid var(--pitch-lines);
-  border-top: none;
-  transform: translateX(-50%);
-}
-
 .pitch-penalty-area-bottom {
   position: absolute;
   bottom: 0;
@@ -197,112 +186,6 @@ button.incorrect {
   border-bottom: none;
   transform: translateX(-50%);
 }
-.pitch-6yard-bottom {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 25%;
-  height: 6%;
-  border: 2px solid var(--pitch-lines);
-  border-bottom: none;
-  transform: translateX(-50%);
-}
-
-/* Penalty arcs (D shape) */
-.pitch-penalty-arc-top {
-  position: absolute;
-  top: 13%;
-  left: 50%;
-  width: 50px;
-  height: 50px;
-  border: 2px solid var(--pitch-lines);
-  border-radius: 50%;
-  border-top: none;
-  border-left: none;
-  border-right: none;
-  transform: translateX(-50%);
-  clip-path: inset(50% 0 0 0);
-}
-.pitch-penalty-arc-bottom {
-  position: absolute;
-  bottom: 13%;
-  left: 50%;
-  width: 50px;
-  height: 50px;
-  border: 2px solid var(--pitch-lines);
-  border-radius: 50%;
-  transform: translateX(-50%);
-  clip-path: inset(0 0 50% 0);
-}
-
-/* Penalty spots */
-.pitch-penalty-spot-top {
-  position: absolute;
-  top: 11.5%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  background: var(--pitch-lines);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-.pitch-penalty-spot-bottom {
-  position: absolute;
-  bottom: 11.5%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  background: var(--pitch-lines);
-  border-radius: 50%;
-  transform: translate(-50%, 50%);
-}
-
-/* Corner arcs */
-.pitch-corner-tl {
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--pitch-lines);
-  border-radius: 50%;
-  border-top: none;
-  border-left: none;
-}
-.pitch-corner-tr {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--pitch-lines);
-  border-radius: 50%;
-  border-top: none;
-  border-right: none;
-}
-.pitch-corner-bl {
-  position: absolute;
-  bottom: -8px;
-  left: -8px;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--pitch-lines);
-  border-radius: 50%;
-  border-bottom: none;
-  border-left: none;
-}
-.pitch-corner-br {
-  position: absolute;
-  bottom: -8px;
-  right: -8px;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--pitch-lines);
-  border-radius: 50%;
-  border-bottom: none;
-  border-right: none;
-}
-
 /* Goal nets */
 .pitch-goal-top {
   position: absolute;
@@ -468,22 +351,6 @@ button.incorrect {
   filter: blur(1.5px) drop-shadow(0 5px 5px rgba(0,0,0,0.4));
 }
 
-.ball-glow {
-  position: absolute;
-  top: -5px;
-  left: -5px;
-  right: -5px;
-  bottom: -5px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%);
-  animation: ball-pulse 1.5s infinite alternate;
-}
-
-@keyframes ball-pulse {
-  from { opacity: 0.3; transform: scale(1); }
-  to { opacity: 0.7; transform: scale(1.6); }
-}
-
 .title {
   font-size: 2.2rem;
   font-weight: 800;
@@ -570,61 +437,6 @@ button.incorrect {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Tactical Radar (Mini-map) */
-.radar-container {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  width: 140px;
-  aspect-ratio: 16/10;
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  padding: 4px;
-  z-index: 100;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.4);
-  pointer-events: none;
-  overflow: hidden;
-  transform: translateZ(50px); /* Keep it floating way above */
-}
-
-.radar-field {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.radar-dot {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 4px currentColor;
-}
-
-.radar-dot.blue { color: #3b82f6; background: #3b82f6; }
-.radar-dot.red { color: #ef4444; background: #ef4444; }
-.radar-dot.ball { color: #fff; background: #fff; width: 3px; height: 3px; }
-.radar-dot.you { 
-  width: 6px; height: 6px; 
-  box-shadow: 0 0 8px #3b82f6;
-  border: 1px solid white;
-}
-
-.vision-cone {
-  position: absolute;
-  pointer-events: none;
-  z-index: 5;
-  background: linear-gradient(to top, rgba(56, 189, 248, 0.2), transparent);
-  width: 80px;
-  height: 80px;
-  mask-image: conic-gradient(from 0deg at 50% 100%, black 30deg, transparent 30deg);
-  transform-origin: bottom center;
-  transform: translate(-50%, -100%) rotateX(-25deg);
-}
 
 /* Final Premium Styles */
 .world-select-container {
