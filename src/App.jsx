@@ -30,6 +30,21 @@ import {
 function App() {
   const [profile, setProfile] = useState(() => loadProfile());
   const [screen, setScreen] = useState('home');
+  const [installPrompt, setInstallPrompt] = useState(null);
+
+  // Capture the browser's install prompt so we can trigger it from a button
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setInstallPrompt(null);
+  };
   
   // Game state
   const [currentPosition, setCurrentPosition] = useState(null);
@@ -153,8 +168,20 @@ function App() {
         {screen === 'home' && (
           <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <HomeScreen onSelectMode={handleSelectMode} />
+            {installPrompt && (
+              <motion.button
+                className="install-fab"
+                onClick={handleInstall}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                📲 הורד את האפליקציה
+              </motion.button>
+            )}
             {profile.stats.totalAnswered > 0 && (
-              <motion.button 
+              <motion.button
                 className="profile-fab"
                 onClick={goProfile}
                 whileHover={{ scale: 1.1 }}

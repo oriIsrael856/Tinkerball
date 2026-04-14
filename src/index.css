@@ -663,6 +663,24 @@ button.incorrect {
   z-index: 10;
 }
 
+.install-fab {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 50px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+  z-index: 10;
+  white-space: nowrap;
+}
+
 /* ============================
    V2 — POSITION SELECT
    ============================ */
